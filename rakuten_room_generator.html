@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>楽天Room 投稿文ジェネレーター</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c26;
+    --border: rgba(255,255,255,0.08);
+    --border-hover: rgba(255,255,255,0.18);
+    --text: #f0f0f5;
+    --text-muted: #888899;
+    --accent: #ff5c35;
+    --accent2: #ff8c5a;
+    --teal: #00d4b4;
+    --teal-dim: rgba(0,212,180,0.12);
+    --radius: 14px;
+    --radius-sm: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  /* Noise texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  .container {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  .header {
+    margin-bottom: 48px;
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .logo::before {
+    content: '';
+    display: inline-block;
+    width: 24px;
+    height: 2px;
+    background: var(--accent);
+  }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(28px, 5vw, 42px);
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+
+  h1 span {
+    color: var(--accent);
+  }
+
+  .subtitle {
+    margin-top: 12px;
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  /* API Key section */
+  .api-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .api-section label {
+    font-size: 13px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  .api-section input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--text);
+    font-family: monospace;
+    outline: none;
+    transition: border 0.2s;
+  }
+
+  .api-section input:focus {
+    border-color: var(--border-hover);
+  }
+
+  .api-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+
+  /* Mode tabs */
+  .mode-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+
+  .mode-tab {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 12px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .mode-tab:hover {
+    border-color: var(--border-hover);
+  }
+
+  .mode-tab.active {
+    border-color: var(--accent);
+    background: rgba(255,92,53,0.08);
+  }
+
+  .mode-tab .tab-icon {
+    font-size: 22px;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .mode-tab .tab-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .mode-tab .tab-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
+
+  /* Form */
+  .form-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px 28px;
+    margin-bottom: 20px;
+  }
+
+  .form-group {
+    margin-bottom: 20px;
+  }
+
+  .form-group:last-child { margin-bottom: 0; }
+
+  label.field-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  input[type="text"], input[type="url"], textarea, select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    font-size: 14px;
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    outline: none;
+    transition: border 0.2s;
+    -webkit-appearance: none;
+  }
+
+  input[type="text"]:focus, input[type="url"]:focus, textarea:focus, select:focus {
+    border-color: var(--accent);
+  }
+
+  textarea {
+    resize: vertical;
+    line-height: 1.7;
+    min-height: 120px;
+  }
+
+  select {
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888899' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 36px;
+  }
+
+  .row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  /* Mode panels */
+  .mode-panel { display: none; }
+  .mode-panel.active { display: block; }
+
+  /* Auto mode special */
+  .url-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 6px;
+    line-height: 1.5;
+  }
+
+  /* Generate button */
+  .gen-btn {
+    width: 100%;
+    padding: 18px;
+    background: var(--accent);
+    border: none;
+    border-radius: var(--radius);
+    color: #fff;
+    font-family: 'Syne', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+
+  .gen-btn:hover { background: var(--accent2); transform: translateY(-1px); }
+  .gen-btn:active { transform: translateY(0); }
+  .gen-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .gen-btn .btn-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  /* Progress */
+  .progress-bar {
+    height: 3px;
+    background: var(--border);
+    border-radius: 99px;
+    margin-bottom: 28px;
+    overflow: hidden;
+    display: none;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--teal));
+    border-radius: 99px;
+    width: 0%;
+    transition: width 0.4s ease;
+  }
+
+  .progress-bar.active { display: block; }
+
+  .progress-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: -20px;
+    margin-bottom: 28px;
+    display: none;
+  }
+
+  .progress-label.active { display: block; }
+
+  /* Output */
+  .output-section {
+    display: none;
+    animation: fadeUp 0.4s ease;
+  }
+
+  .output-section.active { display: block; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .output-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .output-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--teal);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .output-label::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--teal);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .copy-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+
+  .copy-btn:hover { border-color: var(--border-hover); color: var(--text); }
+
+  .output-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    font-size: 14px;
+    line-height: 1.9;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin-bottom: 20px;
+  }
+
+  /* Keywords */
+  .kw-section {
+    margin-bottom: 28px;
+  }
+
+  .kw-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  .kw-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .kw-tag {
+    background: var(--teal-dim);
+    color: var(--teal);
+    font-size: 13px;
+    padding: 6px 14px;
+    border-radius: 99px;
+    font-weight: 500;
+    border: 1px solid rgba(0,212,180,0.2);
+  }
+
+  /* Error */
+  .error-box {
+    background: rgba(255,80,80,0.1);
+    border: 1px solid rgba(255,80,80,0.25);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    font-size: 13px;
+    color: #ff6b6b;
+    margin-bottom: 20px;
+    display: none;
+  }
+
+  .error-box.active { display: block; }
+
+  /* Divider */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 32px 0;
+  }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 60px;
+    opacity: 0.5;
+  }
+
+  /* Spinner */
+  .spinner {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Info note */
+  .info-note {
+    background: rgba(0,212,180,0.06);
+    border: 1px solid rgba(0,212,180,0.15);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    font-size: 12px;
+    color: rgba(0,212,180,0.8);
+    line-height: 1.6;
+    margin-bottom: 20px;
+  }
+
+  @media (max-width: 540px) {
+    .row-2 { grid-template-columns: 1fr; }
+    .mode-tabs { grid-template-columns: 1fr; }
+    .api-section { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="logo">Rakuten Room Tool</div>
+    <h1>投稿文<span>ジェネレーター</span></h1>
+    <p class="subtitle">ガジェット・フィットネス特化 ／ 20代男性ターゲット ／ 3モード対応</p>
+  </div>
+
+  <!-- API Key -->
+  <div class="form-card" style="margin-bottom: 28px;">
+    <div class="form-group" style="margin-bottom: 8px;">
+      <label class="field-label">Anthropic API Key</label>
+      <div class="api-section" style="padding: 0; background: none; border: none; gap: 0;">
+        <input type="password" id="api-key" placeholder="sk-ant-..." style="width: 100%;" />
+      </div>
+    </div>
+    <p class="api-hint">APIキーは <a href="https://console.anthropic.com" target="_blank" style="color: var(--accent); text-decoration: none;">console.anthropic.com</a> で取得できます。キーはブラウザのみで使用され、サーバーに送信されません。</p>
+  </div>
+
+  <!-- Mode Tabs -->
+  <div class="mode-tabs">
+    <div class="mode-tab active" onclick="setMode('auto')" id="tab-auto">
+      <span class="tab-icon">🤖</span>
+      <span class="tab-label">全自動モード</span>
+      <span class="tab-desc">商品名 or URLだけで<br>AIが全部やる</span>
+    </div>
+    <div class="mode-tab" onclick="setMode('bullets')" id="tab-bullets">
+      <span class="tab-icon">📝</span>
+      <span class="tab-label">箇条書きモード</span>
+      <span class="tab-desc">特徴を箇条書きで<br>AIが文章に整える</span>
+    </div>
+    <div class="mode-tab" onclick="setMode('manual')" id="tab-manual">
+      <span class="tab-icon">✍️</span>
+      <span class="tab-label">手入力モード</span>
+      <span class="tab-desc">自分で書いて<br>AIが磨き上げる</span>
+    </div>
+  </div>
+
+  <!-- Mode: Auto -->
+  <div class="mode-panel active" id="panel-auto">
+    <div class="info-note">
+      🔍 商品名を入力するとAIがWebで検索してレビュー・特徴を収集し、投稿文を自動で作成します。楽天の商品URLも使えます。
+    </div>
+    <div class="form-card">
+      <div class="form-group">
+        <label class="field-label">商品名 または 楽天商品URL</label>
+        <input type="text" id="auto-product" placeholder="例：SONY WF-1000XM5 ／ https://item.rakuten.co.jp/..." />
+        <p class="url-hint">商品名だけでOKです。URLを貼るとより精度が上がります。</p>
+      </div>
+      <div class="row-2">
+        <div class="form-group">
+          <label class="field-label">カテゴリ</label>
+          <select id="auto-category">
+            <option>ガジェット・家電</option>
+            <option>フィットネス・スポーツ</option>
+            <option>ファッション・アパレル</option>
+            <option>美容・スキンケア</option>
+            <option>インテリア・雑貨</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="field-label">参考価格帯</label>
+          <select id="auto-price">
+            <option>3,000〜8,000円</option>
+            <option selected>8,000〜15,000円</option>
+            <option>15,000〜30,000円</option>
+            <option>30,000〜50,000円</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mode: Bullets -->
+  <div class="mode-panel" id="panel-bullets">
+    <div class="form-card">
+      <div class="form-group">
+        <label class="field-label">商品名</label>
+        <input type="text" id="bullets-product" placeholder="例：Anker Soundcore Liberty 4 NC" />
+      </div>
+      <div class="row-2">
+        <div class="form-group">
+          <label class="field-label">カテゴリ</label>
+          <select id="bullets-category">
+            <option>ガジェット・家電</option>
+            <option>フィットネス・スポーツ</option>
+            <option>ファッション・アパレル</option>
+            <option>美容・スキンケア</option>
+            <option>インテリア・雑貨</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="field-label">参考価格帯</label>
+          <select id="bullets-price">
+            <option>3,000〜8,000円</option>
+            <option selected>8,000〜15,000円</option>
+            <option>15,000〜30,000円</option>
+            <option>30,000〜50,000円</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="field-label">商品の特徴（1行ずつ）</label>
+        <textarea id="bullets-features" placeholder="ノイズキャンセリング搭載&#10;最大40時間再生&#10;防水IPX5対応&#10;専用アプリでEQ調整可能&#10;コンパクトな充電ケース"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mode: Manual -->
+  <div class="mode-panel" id="panel-manual">
+    <div class="info-note">
+      ✍️ 自分で書いた文章をAIがブラッシュアップ。キーワードも自動追加します。
+    </div>
+    <div class="form-card">
+      <div class="form-group">
+        <label class="field-label">商品名</label>
+        <input type="text" id="manual-product" placeholder="例：WHOOP 4.0" />
+      </div>
+      <div class="row-2">
+        <div class="form-group">
+          <label class="field-label">カテゴリ</label>
+          <select id="manual-category">
+            <option>ガジェット・家電</option>
+            <option>フィットネス・スポーツ</option>
+            <option>ファッション・アパレル</option>
+            <option>美容・スキンケア</option>
+            <option>インテリア・雑貨</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="field-label">参考価格帯</label>
+          <select id="manual-price">
+            <option>3,000〜8,000円</option>
+            <option selected>8,000〜15,000円</option>
+            <option>15,000〜30,000円</option>
+            <option>30,000〜50,000円</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="field-label">自分で書いた投稿文（下書き）</label>
+        <textarea id="manual-draft" rows="6" placeholder="例：最近買ったイヤホンがめちゃくちゃいい感じです。ノイキャンが強力で電車の中でも集中できます..."></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div class="error-box" id="error-box"></div>
+
+  <!-- Progress -->
+  <div class="progress-bar" id="progress-bar">
+    <div class="progress-fill" id="progress-fill"></div>
+  </div>
+  <div class="progress-label" id="progress-label"></div>
+
+  <!-- Generate Button -->
+  <button class="gen-btn" id="gen-btn" onclick="generate()">
+    <span class="btn-inner" id="btn-inner">
+      投稿文を生成する →
+    </span>
+  </button>
+
+  <hr class="divider" id="output-divider" style="display:none;">
+
+  <!-- Output -->
+  <div class="output-section" id="output-section">
+    <div class="output-header">
+      <div class="output-label">生成された投稿文</div>
+      <button class="copy-btn" onclick="copyPost()">コピー</button>
+    </div>
+    <div class="output-box" id="output-post"></div>
+
+    <div class="kw-section">
+      <div class="kw-label">検索キーワード（5つ）</div>
+      <div class="kw-tags" id="kw-tags"></div>
+    </div>
+  </div>
+
+  <div class="footer">楽天Room 投稿文ジェネレーター — Powered by Claude AI</div>
+</div>
+
+<script>
+let currentMode = 'auto';
+
+function setMode(mode) {
+  currentMode = mode;
+  ['auto','bullets','manual'].forEach(m => {
+    document.getElementById('tab-' + m).classList.toggle('active', m === mode);
+    document.getElementById('panel-' + m).classList.toggle('active', m === mode);
+  });
+  hideOutput();
+  hideError();
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-box');
+  el.textContent = msg;
+  el.classList.add('active');
+}
+
+function hideError() {
+  document.getElementById('error-box').classList.remove('active');
+}
+
+function hideOutput() {
+  document.getElementById('output-section').classList.remove('active');
+  document.getElementById('output-divider').style.display = 'none';
+}
+
+function setProgress(pct, label) {
+  const bar = document.getElementById('progress-bar');
+  const fill = document.getElementById('progress-fill');
+  const lbl = document.getElementById('progress-label');
+  if (pct === null) {
+    bar.classList.remove('active');
+    lbl.classList.remove('active');
+  } else {
+    bar.classList.add('active');
+    lbl.classList.add('active');
+    fill.style.width = pct + '%';
+    lbl.textContent = label;
+  }
+}
+
+function setBtnLoading(loading) {
+  const btn = document.getElementById('gen-btn');
+  const inner = document.getElementById('btn-inner');
+  btn.disabled = loading;
+  if (loading) {
+    inner.innerHTML = '<span class="spinner"></span> 生成中...';
+  } else {
+    inner.innerHTML = '投稿文を生成する →';
+  }
+}
+
+async function callClaude(apiKey, systemPrompt, userPrompt) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1500,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
+      tools: [{
+        type: 'web_search_20250305',
+        name: 'web_search'
+      }]
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `API Error ${res.status}`);
+  }
+
+  const data = await res.json();
+  const text = data.content.map(i => i.text || '').filter(Boolean).join('');
+  return text;
+}
+
+async function callClaudeNoSearch(apiKey, systemPrompt, userPrompt) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1500,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }]
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `API Error ${res.status}`);
+  }
+
+  const data = await res.json();
+  return data.content.map(i => i.text || '').filter(Boolean).join('');
+}
+
+function parseJSON(text) {
+  const clean = text.replace(/```json|```/g, '').trim();
+  const match = clean.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('JSONの解析に失敗しました');
+  return JSON.parse(match[0]);
+}
+
+const systemPrompt = `あなたは楽天Roomの投稿文専門ライターです。
+ターゲット：20代男性
+トーン：親しみやすく、共感を呼ぶ、フレンドリーな敬語（タメ口NG）
+
+以下のJSONのみを返してください（説明・マークダウン不要）:
+{
+  "post": "投稿文（絵文字あり・改行あり・400〜500文字）",
+  "keywords": ["キーワード1","キーワード2","キーワード3","キーワード4","キーワード5"]
+}
+
+投稿文の構成：
+1. 冒頭：20代男性が共感できる悩みや状況
+2. 商品紹介：商品名と特徴を自然に組み込む
+3. 実際に使った感想（リアルな視点）
+4. 価格帯へのコメント（コスパ感を強調）
+5. 締め：フォローや楽天Roomへの誘導
+
+キーワード：楽天・Google検索で実際に使われるもの。商品カテゴリ＋悩み・用途の組み合わせ。`;
+
+async function generate() {
+  hideError();
+  hideOutput();
+
+  const apiKey = document.getElementById('api-key').value.trim();
+  if (!apiKey || !apiKey.startsWith('sk-ant-')) {
+    showError('有効なAnthropicのAPIキー（sk-ant-...）を入力してください');
+    return;
+  }
+
+  setBtnLoading(true);
+
+  try {
+    let result;
+
+    if (currentMode === 'auto') {
+      const product = document.getElementById('auto-product').value.trim();
+      const category = document.getElementById('auto-category').value;
+      const price = document.getElementById('auto-price').value;
+      if (!product) { showError('商品名またはURLを入力してください'); setBtnLoading(false); return; }
+
+      setProgress(20, 'Web検索中...');
+
+      const isUrl = product.startsWith('http');
+      const userPrompt = isUrl
+        ? `以下の楽天商品ページの情報とレビューを参考にして投稿文を作成してください。\n商品URL: ${product}\nカテゴリ: ${category}\n参考価格帯: ${price}`
+        : `「${product}」について、Webで検索して最新のレビュー・特徴・評判を調べてから投稿文を作成してください。\nカテゴリ: ${category}\n参考価格帯: ${price}`;
+
+      setProgress(55, 'レビューを分析中...');
+      const text = await callClaude(apiKey, systemPrompt, userPrompt);
+      setProgress(90, '投稿文を生成中...');
+      result = parseJSON(text);
+
+    } else if (currentMode === 'bullets') {
+      const product = document.getElementById('bullets-product').value.trim();
+      const features = document.getElementById('bullets-features').value.trim();
+      const category = document.getElementById('bullets-category').value;
+      const price = document.getElementById('bullets-price').value;
+      if (!product) { showError('商品名を入力してください'); setBtnLoading(false); return; }
+      if (!features) { showError('特徴を入力してください'); setBtnLoading(false); return; }
+
+      setProgress(40, '投稿文を生成中...');
+      const userPrompt = `カテゴリ: ${category}\n商品名: ${product}\n参考価格帯: ${price}\n\n特徴（箇条書き）:\n${features}`;
+      const text = await callClaudeNoSearch(apiKey, systemPrompt, userPrompt);
+      setProgress(85, '仕上げ中...');
+      result = parseJSON(text);
+
+    } else {
+      const product = document.getElementById('manual-product').value.trim();
+      const draft = document.getElementById('manual-draft').value.trim();
+      const category = document.getElementById('manual-category').value;
+      const price = document.getElementById('manual-price').value;
+      if (!product) { showError('商品名を入力してください'); setBtnLoading(false); return; }
+      if (!draft) { showError('下書きを入力してください'); setBtnLoading(false); return; }
+
+      setProgress(40, '文章をブラッシュアップ中...');
+      const manualSystem = systemPrompt + '\n\n追加指示：ユーザーの下書きの雰囲気・個性を最大限活かしながら、楽天Room向けに洗練させてください。';
+      const userPrompt = `カテゴリ: ${category}\n商品名: ${product}\n参考価格帯: ${price}\n\nユーザーの下書き:\n${draft}`;
+      const text = await callClaudeNoSearch(apiKey, manualSystem, userPrompt);
+      setProgress(85, '仕上げ中...');
+      result = parseJSON(text);
+    }
+
+    setProgress(100, '完了！');
+    setTimeout(() => setProgress(null, ''), 600);
+
+    // Display result
+    document.getElementById('output-post').textContent = result.post;
+    const kwArea = document.getElementById('kw-tags');
+    kwArea.innerHTML = '';
+    (result.keywords || []).forEach(k => {
+      const tag = document.createElement('span');
+      tag.className = 'kw-tag';
+      tag.textContent = '#' + k;
+      kwArea.appendChild(tag);
+    });
+
+    document.getElementById('output-divider').style.display = 'block';
+    document.getElementById('output-section').classList.add('active');
+    document.getElementById('output-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  } catch(e) {
+    setProgress(null, '');
+    showError('エラー: ' + (e.message || '不明なエラー'));
+  }
+
+  setBtnLoading(false);
+}
+
+function copyPost() {
+  const text = document.getElementById('output-post').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = 'コピーしました！';
+    setTimeout(() => btn.textContent = 'コピー', 2000);
+  });
+}
+</script>
+</body>
+</html>
