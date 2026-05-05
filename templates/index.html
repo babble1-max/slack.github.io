@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Slack Daily Scheduler</title>
+  <style>
+    :root {
+      --slack-purple: #4A154B;
+      --slack-green:  #2BAC76;
+      --accent:       #E01E5A;
+      --bg:           #F4EDE4;
+      --card-bg:      #FFFFFF;
+      --border:       #E0D6CF;
+      --text:         #1D1C1D;
+      --text-muted:   #616061;
+      --radius:       10px;
+      --shadow:       0 1px 4px rgba(0,0,0,0.10);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* Header */
+    header {
+      background: var(--slack-purple);
+      color: #fff;
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+    #status-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      background: rgba(255,255,255,0.15);
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+    #status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #888;
+      transition: background 0.3s;
+    }
+    #status-dot.active  { background: var(--slack-green); }
+    #status-dot.error   { background: var(--accent); }
+
+    /* Layout */
+    main {
+      max-width: 900px;
+      margin: 28px auto;
+      padding: 0 16px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 640px) {
+      main { grid-template-columns: 1fr; }
+    }
+
+    /* Cards */
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px;
+    }
+    .card h2 {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+    .full-width { grid-column: 1 / -1; }
+
+    /* Form controls */
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: var(--text);
+    }
+    input[type="text"],
+    input[type="password"],
+    input[type="time"],
+    textarea,
+    select {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      font-size: 14px;
+      color: var(--text);
+      background: #fafafa;
+      transition: border-color 0.15s;
+      outline: none;
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--slack-purple);
+      background: #fff;
+    }
+    textarea { resize: vertical; min-height: 100px; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 9px 18px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary   { background: var(--slack-purple); color: #fff; }
+    .btn-green     { background: var(--slack-green);  color: #fff; }
+    .btn-outline   { background: transparent; color: var(--slack-purple); border: 1.5px solid var(--slack-purple); }
+    .btn-danger    { background: var(--accent);       color: #fff; }
+    .btn-sm        { padding: 6px 12px; font-size: 13px; }
+
+    /* Token row */
+    .token-row { display: flex; gap: 8px; }
+    .token-row input { flex: 1; }
+
+    /* Channel row */
+    .channel-row { display: flex; gap: 8px; align-items: flex-end; }
+    .channel-row select { flex: 1; }
+
+    /* Time row */
+    .time-row { display: flex; gap: 8px; align-items: center; }
+    .time-row input[type="time"] { flex: 1; }
+
+    /* Image preview */
+    #image-preview-wrap {
+      margin-top: 10px;
+      display: none;
+    }
+    #image-preview {
+      max-width: 100%;
+      max-height: 160px;
+      border-radius: 6px;
+      border: 1.5px solid var(--border);
+      object-fit: contain;
+    }
+    #image-name {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Toggle switch */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .toggle {
+      position: relative;
+      width: 46px;
+      height: 26px;
+      flex-shrink: 0;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: #ccc;
+      border-radius: 26px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle-slider::before {
+      content: "";
+      position: absolute;
+      width: 20px; height: 20px;
+      left: 3px; top: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .toggle input:checked + .toggle-slider { background: var(--slack-green); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(20px); }
+
+    /* Action buttons row */
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+
+    /* Status panel */
+    .status-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .stat-box {
+      background: #f8f5f2;
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .stat-box .stat-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-box .stat-value { font-size: 15px; font-weight: 700; margin-top: 4px; }
+
+    /* Log */
+    #log-list { list-style: none; }
+    #log-list li {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    #log-list li:last-child { border-bottom: none; }
+    .log-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+    .log-time { color: var(--text-muted); white-space: nowrap; font-size: 12px; }
+    .log-detail { color: var(--text); }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(60px);
+      background: #1D1C1D;
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      transition: transform 0.25s ease;
+      z-index: 999;
+      white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+    #toast.success { background: var(--slack-green); }
+    #toast.error   { background: var(--accent); }
+
+    /* Error message */
+    .error-msg { color: var(--accent); font-size: 12px; margin-top: 4px; display: none; }
+    .field { margin-bottom: 14px; }
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📅 Slack Daily Scheduler</h1>
+  <div id="status-pill">
+    <div id="status-dot"></div>
+    <span id="status-text">読み込み中...</span>
+  </div>
+</header>
+
+<main>
+  <!-- LEFT: Slack Settings -->
+  <div class="card">
+    <h2>Slack 設定</h2>
+
+    <div class="field">
+      <label for="token-input">Bot Token</label>
+      <div class="token-row">
+        <input type="password" id="token-input" placeholder="xoxb-..." autocomplete="off" />
+        <button class="btn btn-outline btn-sm" id="connect-btn" onclick="connectSlack()">接続</button>
+      </div>
+      <div class="error-msg" id="token-error"></div>
+    </div>
+
+    <div class="field">
+      <label for="channel-select">チャンネル</label>
+      <div class="channel-row">
+        <select id="channel-select" disabled>
+          <option value="">— 先に接続してください —</option>
+        </select>
+      </div>
+      <div class="error-msg" id="channel-error"></div>
+    </div>
+
+    <div class="field">
+      <label for="time-input">送信時刻（毎日）</label>
+      <div class="time-row">
+        <input type="time" id="time-input" value="09:00" />
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Message & Image -->
+  <div class="card">
+    <h2>メッセージ &amp; 画像</h2>
+
+    <div class="field">
+      <label for="message-input">送信するメッセージ</label>
+      <textarea id="message-input" placeholder="毎日送るメッセージを入力してください..."></textarea>
+    </div>
+
+    <div class="field">
+      <label for="image-input">画像ファイル</label>
+      <input type="file" id="image-input" accept=".jpg,.jpeg,.png,.gif,.webp" onchange="uploadImage(this)" />
+      <div id="image-preview-wrap">
+        <img id="image-preview" alt="プレビュー" />
+        <div id="image-name"></div>
+      </div>
+      <div class="error-msg" id="image-error"></div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="card">
+    <h2>コントロール</h2>
+
+    <div class="field">
+      <div class="toggle-row">
+        <label class="toggle">
+          <input type="checkbox" id="enabled-toggle" onchange="toggleEnabled(this)" />
+          <div class="toggle-slider"></div>
+        </label>
+        <span id="toggle-label">スケジューラー 無効</span>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" onclick="saveConfig()">
+        💾 設定を保存
+      </button>
+      <button class="btn btn-green" id="send-now-btn" onclick="sendNow()">
+        ▶ 今すぐ送信
+      </button>
+    </div>
+  </div>
+
+  <!-- Status & Log -->
+  <div class="card full-width">
+    <h2>ステータス &amp; ログ</h2>
+
+    <div class="status-grid">
+      <div class="stat-box">
+        <div class="stat-label">次回送信</div>
+        <div class="stat-value" id="next-run">—</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">最終送信</div>
+        <div class="stat-value" id="last-sent">—</div>
+      </div>
+    </div>
+
+    <ul id="log-list">
+      <li><span class="log-detail" style="color:var(--text-muted)">まだ送信履歴がありません</span></li>
+    </ul>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+  // ---------------------------------------------------------------------------
+  // State
+  // ---------------------------------------------------------------------------
+  let savedToken = false;   // サーバー側にトークンが保存済みか
+  let statusInterval = null;
+
+  // ---------------------------------------------------------------------------
+  // Init
+  // ---------------------------------------------------------------------------
+  async function init() {
+    await loadConfig();
+    await refreshStatus();
+    statusInterval = setInterval(refreshStatus, 30000);
+  }
+
+  async function loadConfig() {
+    try {
+      const res = await fetch("/api/config");
+      const cfg = await res.json();
+
+      savedToken = !!cfg.token;   // "***" or ""
+
+      const tokenInput = document.getElementById("token-input");
+      if (savedToken) {
+        tokenInput.placeholder = "保存済み（変更する場合は入力）";
+      }
+
+      if (cfg.channel_id) {
+        // チャンネルリストを取得してから選択状態を復元
+        await fetchChannels(null, cfg.channel_id);
+      }
+
+      document.getElementById("message-input").value = cfg.message || "";
+      document.getElementById("time-input").value    = cfg.send_time || "09:00";
+
+      const toggle = document.getElementById("enabled-toggle");
+      toggle.checked = !!cfg.enabled;
+      updateToggleLabel(toggle.checked);
+
+      if (cfg.image_filename) {
+        document.getElementById("image-name").textContent = cfg.image_filename;
+        document.getElementById("image-preview-wrap").style.display = "block";
+      }
+    } catch (e) {
+      console.error("設定の読み込みに失敗しました", e);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Slack 接続
+  // ---------------------------------------------------------------------------
+  async function connectSlack() {
+    const tokenInput = document.getElementById("token-input");
+    const token = tokenInput.value.trim();
+    const btn = document.getElementById("connect-btn");
+
+    if (!token && !savedToken) {
+      showError("token-error", "トークンを入力してください");
+      return;
+    }
+    hideError("token-error");
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
+
+    try {
+      // トークンを先に保存
+      if (token) {
+        await fetch("/api/config", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ token }),
+        });
+        savedToken = true;
+        tokenInput.value = "";
+        tokenInput.placeholder = "保存済み（変更する場合は入力）";
+      }
+
+      const url = token ? `/api/channels?token=${encodeURIComponent(token)}` : "/api/channels";
+      await fetchChannels(url, null);
+    } catch (e) {
+      showError("token-error", "接続に失敗しました");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "接続";
+    }
+  }
+
+  async function fetchChannels(url, selectedId) {
+    hideError("channel-error");
+    const select = document.getElementById("channel-select");
+    select.disabled = true;
+    select.innerHTML = '<option>読み込み中...</option>';
+
+    try {
+      const res  = await fetch(url || "/api/channels");
+      const data = await res.json();
+
+      if (data.error) {
+        showError("channel-error", `エラー: ${data.error}`);
+        select.innerHTML = '<option value="">— 取得失敗 —</option>';
+        return;
+      }
+
+      select.innerHTML = '<option value="">— チャンネルを選択 —</option>';
+      data.channels.forEach(ch => {
+        const opt = document.createElement("option");
+        opt.value = ch.id;
+        opt.textContent = `#${ch.name}`;
+        if (ch.id === selectedId) opt.selected = true;
+        select.appendChild(opt);
+      });
+      select.disabled = false;
+    } catch (e) {
+      showError("channel-error", "チャンネルの取得に失敗しました");
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 画像アップロード
+  // ---------------------------------------------------------------------------
+  async function uploadImage(input) {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    hideError("image-error");
+
+    // クライアントサイドプレビュー
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = document.getElementById("image-preview");
+      img.src = e.target.result;
+      document.getElementById("image-name").textContent = file.name;
+      document.getElementById("image-preview-wrap").style.display = "block";
+    };
+    reader.readAsDataURL(file);
+
+    // サーバーにアップロード
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res  = await fetch("/api/upload-image", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        showError("image-error", data.error || "アップロード失敗");
+      }
+    } catch (e) {
+      showError("image-error", "アップロードに失敗しました");
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 設定保存
+  // ---------------------------------------------------------------------------
+  async function saveConfig() {
+    const select  = document.getElementById("channel-select");
+    const selOpt  = select.options[select.selectedIndex];
+    const payload = {
+      channel_id:   select.value,
+      channel_name: selOpt ? selOpt.textContent.replace(/^#/, "") : "",
+      message:      document.getElementById("message-input").value,
+      send_time:    document.getElementById("time-input").value,
+      enabled:      document.getElementById("enabled-toggle").checked,
+    };
+
+    const token = document.getElementById("token-input").value.trim();
+    if (token) payload.token = token;
+
+    try {
+      const res = await fetch("/api/config", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        showToast("設定を保存しました", "success");
+        if (token) {
+          savedToken = true;
+          document.getElementById("token-input").value = "";
+          document.getElementById("token-input").placeholder = "保存済み（変更する場合は入力）";
+        }
+        refreshStatus();
+      } else {
+        showToast("保存に失敗しました", "error");
+      }
+    } catch (e) {
+      showToast("保存に失敗しました", "error");
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 有効化トグル
+  // ---------------------------------------------------------------------------
+  async function toggleEnabled(checkbox) {
+    updateToggleLabel(checkbox.checked);
+    const payload = { enabled: checkbox.checked };
+    try {
+      await fetch("/api/config", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload),
+      });
+      refreshStatus();
+    } catch (e) {
+      checkbox.checked = !checkbox.checked;
+      updateToggleLabel(checkbox.checked);
+    }
+  }
+
+  function updateToggleLabel(enabled) {
+    document.getElementById("toggle-label").textContent =
+      enabled ? "スケジューラー 有効" : "スケジューラー 無効";
+  }
+
+  // ---------------------------------------------------------------------------
+  // 今すぐ送信
+  // ---------------------------------------------------------------------------
+  async function sendNow() {
+    const btn = document.getElementById("send-now-btn");
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> 送信中...';
+
+    try {
+      const res  = await fetch("/api/send-now", { method: "POST" });
+      const data = await res.json();
+
+      if (data.status === "success") {
+        showToast("✓ " + data.detail, "success");
+      } else {
+        showToast("✗ " + data.detail, "error");
+      }
+      refreshStatus();
+    } catch (e) {
+      showToast("送信に失敗しました", "error");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = "▶ 今すぐ送信";
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // ステータス更新
+  // ---------------------------------------------------------------------------
+  async function refreshStatus() {
+    try {
+      const res  = await fetch("/api/status");
+      const data = await res.json();
+
+      // ステータスピル
+      const dot  = document.getElementById("status-dot");
+      const text = document.getElementById("status-text");
+      if (data.enabled && data.next_run) {
+        dot.className = "active";
+        text.textContent = "スケジュール実行中";
+      } else if (data.enabled) {
+        dot.className = "";
+        text.textContent = "有効（次回時刻待ち）";
+      } else {
+        dot.className = "";
+        text.textContent = "停止中";
+      }
+
+      // 統計
+      document.getElementById("next-run").textContent  = data.next_run  || "—";
+      document.getElementById("last-sent").textContent = data.last_sent || "—";
+
+      // ログ
+      renderLog(data.log || []);
+    } catch (e) {
+      console.error("ステータス取得失敗", e);
+    }
+  }
+
+  function renderLog(logs) {
+    const ul = document.getElementById("log-list");
+    if (!logs.length) {
+      ul.innerHTML = '<li><span class="log-detail" style="color:var(--text-muted)">まだ送信履歴がありません</span></li>';
+      return;
+    }
+    ul.innerHTML = logs.map(entry => {
+      const icon   = entry.status === "success" ? "✅" : "❌";
+      const detail = escapeHtml(entry.detail || "");
+      const time   = escapeHtml(entry.time   || "");
+      return `<li>
+        <span class="log-icon">${icon}</span>
+        <span class="log-time">${time}</span>
+        <span class="log-detail">${detail}</span>
+      </li>`;
+    }).join("");
+  }
+
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+  function showToast(msg, type) {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.className = `show ${type || ""}`;
+    setTimeout(() => { t.className = ""; }, 3000);
+  }
+
+  function showError(id, msg) {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = msg; el.style.display = "block"; }
+  }
+
+  function hideError(id) {
+    const el = document.getElementById(id);
+    if (el) { el.style.display = "none"; }
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+
+  // ---------------------------------------------------------------------------
+  // Start
+  // ---------------------------------------------------------------------------
+  init();
+</script>
+</body>
+</html>

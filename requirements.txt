@@ -1,0 +1,5 @@
+flask>=3.0.0
+apscheduler==3.10.4
+slack-sdk>=3.27.0
+requests>=2.31.0
+tzlocal>=4.0
