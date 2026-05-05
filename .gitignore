@@ -1,5 +1,4 @@
 config.json
-uploads/
 __pycache__/
 *.pyc
 *.pyo

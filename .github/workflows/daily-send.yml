@@ -1,0 +1,37 @@
+name: Daily Slack Sender
+
+on:
+  # ──────────────────────────────────────────────
+  # 送信時刻の変更方法:
+  #   cron は UTC で指定します。JST = UTC + 9
+  #   例) 毎日 9:00 JST → 0 0 * * *
+  #       毎日 12:00 JST → 0 3 * * *
+  #       毎日 18:00 JST → 0 9 * * *
+  #       毎日 21:00 JST → 0 12 * * *
+  # ──────────────────────────────────────────────
+  schedule:
+    - cron: "0 0 * * *"   # 毎日 9:00 JST
+
+  # GitHub の Actions タブから手動実行（テスト送信）も可能
+  workflow_dispatch:
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Python をセットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 依存パッケージをインストール
+        run: pip install slack-sdk requests
+
+      - name: Slack にメッセージを送信
+        run: python send_message.py
+        env:
+          SLACK_TOKEN: ${{ secrets.SLACK_TOKEN }}
