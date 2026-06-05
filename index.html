@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>韓国語学習ツール</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #16213e;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      border-bottom: 2px solid #0f3460;
+    }
+
+    header h1 { font-size: 1.4rem; color: #e94560; }
+
+    nav {
+      display: flex;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    nav button {
+      background: transparent;
+      border: 1px solid #0f3460;
+      color: #ccc;
+      padding: 6px 16px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    nav button.active, nav button:hover {
+      background: #e94560;
+      border-color: #e94560;
+      color: #fff;
+    }
+
+    main { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+
+    /* ===== Section visibility ===== */
+    .section { display: none; }
+    .section.active { display: block; }
+
+    /* ===== Hangul Chart ===== */
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .chart-card {
+      background: #16213e;
+      border: 1px solid #0f3460;
+      border-radius: 10px;
+      padding: 12px 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s;
+    }
+
+    .chart-card:hover { transform: scale(1.05); border-color: #e94560; }
+
+    .chart-card .hangul { font-size: 2rem; color: #e94560; line-height: 1; }
+    .chart-card .roman { font-size: 0.75rem; color: #aaa; margin-top: 4px; }
+    .chart-card .meaning { font-size: 0.7rem; color: #888; margin-top: 2px; }
+
+    .section-title {
+      font-size: 1.1rem;
+      color: #e94560;
+      margin: 24px 0 8px;
+      border-left: 3px solid #e94560;
+      padding-left: 10px;
+    }
+
+    /* ===== Flashcard ===== */
+    .flashcard-area { text-align: center; margin-top: 20px; }
+
+    .card {
+      background: #16213e;
+      border: 2px solid #0f3460;
+      border-radius: 16px;
+      padding: 48px 32px;
+      margin: 0 auto;
+      max-width: 420px;
+      min-height: 220px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      position: relative;
+    }
+
+    .card:hover { border-color: #e94560; }
+
+    .card-front { font-size: 3.5rem; color: #e94560; }
+    .card-back { font-size: 1.3rem; color: #ccc; margin-top: 16px; display: none; }
+    .card.flipped .card-back { display: block; }
+    .card .hint { font-size: 0.75rem; color: #666; position: absolute; bottom: 12px; right: 16px; }
+
+    .card-controls {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .btn {
+      padding: 10px 28px;
+      border: none;
+      border-radius: 24px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: opacity 0.2s;
+    }
+
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: #e94560; color: #fff; }
+    .btn-success { background: #2ecc71; color: #fff; }
+    .btn-danger  { background: #e74c3c; color: #fff; }
+    .btn-secondary { background: #0f3460; color: #ccc; }
+
+    .progress-bar {
+      background: #0f3460;
+      border-radius: 8px;
+      height: 8px;
+      margin-bottom: 16px;
+    }
+
+    .progress-fill {
+      background: #e94560;
+      height: 100%;
+      border-radius: 8px;
+      transition: width 0.3s;
+    }
+
+    .score { font-size: 0.85rem; color: #888; margin-bottom: 8px; text-align: right; }
+
+    /* ===== Quiz ===== */
+    .quiz-question {
+      font-size: 3rem;
+      text-align: center;
+      color: #e94560;
+      margin: 24px 0;
+    }
+
+    .quiz-options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    .quiz-option {
+      background: #16213e;
+      border: 2px solid #0f3460;
+      color: #ccc;
+      padding: 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 1rem;
+      text-align: center;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .quiz-option:hover:not(:disabled) { border-color: #e94560; }
+    .quiz-option.correct { border-color: #2ecc71; background: #1a4a2e; color: #2ecc71; }
+    .quiz-option.wrong   { border-color: #e74c3c; background: #4a1a1a; color: #e74c3c; }
+    .quiz-option:disabled { cursor: default; }
+
+    .quiz-feedback { text-align: center; font-size: 1rem; margin-top: 16px; min-height: 24px; }
+    .quiz-feedback.ok  { color: #2ecc71; }
+    .quiz-feedback.ng  { color: #e74c3c; }
+
+    /* ===== Writing Practice ===== */
+    .writing-area { max-width: 560px; margin: 0 auto; }
+
+    .writing-prompt {
+      font-size: 1.1rem;
+      color: #aaa;
+      margin: 16px 0 8px;
+    }
+
+    .writing-target {
+      font-size: 3rem;
+      color: #e94560;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    .writing-input {
+      width: 100%;
+      background: #16213e;
+      border: 2px solid #0f3460;
+      border-radius: 10px;
+      color: #eee;
+      font-size: 1.8rem;
+      padding: 12px 16px;
+      text-align: center;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .writing-input:focus { border-color: #e94560; }
+    .writing-input.ok   { border-color: #2ecc71; }
+    .writing-input.ng   { border-color: #e74c3c; }
+
+    .writing-hint {
+      font-size: 0.8rem;
+      color: #888;
+      margin-top: 6px;
+      text-align: center;
+    }
+
+    canvas {
+      border: 2px solid #0f3460;
+      border-radius: 10px;
+      background: #0d0d1a;
+      display: block;
+      margin: 12px auto;
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    .canvas-controls {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    /* ===== Utility ===== */
+    .tag {
+      display: inline-block;
+      background: #0f3460;
+      border-radius: 12px;
+      padding: 3px 10px;
+      font-size: 0.75rem;
+      color: #aaa;
+      margin: 2px;
+    }
+
+    .result-box {
+      text-align: center;
+      padding: 32px;
+      background: #16213e;
+      border-radius: 16px;
+      margin-top: 16px;
+    }
+
+    .result-box .big { font-size: 3rem; margin-bottom: 8px; }
+    .result-box p { color: #aaa; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🇰🇷 韓国語学習</h1>
+  <nav>
+    <button class="active" onclick="showSection('chart')">文字表</button>
+    <button onclick="showSection('flashcard')">フラッシュカード</button>
+    <button onclick="showSection('quiz')">クイズ</button>
+    <button onclick="showSection('writing')">書き練習</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ===== Hangul Chart ===== -->
+  <div id="chart" class="section active">
+    <p style="color:#888; margin-bottom:8px;">カードをクリックすると発音の説明が表示されます。</p>
+
+    <div class="section-title">母音 (모음)</div>
+    <div class="chart-grid" id="vowelGrid"></div>
+
+    <div class="section-title">子音 (자음)</div>
+    <div class="chart-grid" id="consonantGrid"></div>
+
+    <div class="section-title">よく使う単語</div>
+    <div class="chart-grid" id="wordGrid"></div>
+  </div>
+
+  <!-- ===== Flashcard ===== -->
+  <div id="flashcard" class="section">
+    <div style="display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+      <button class="btn btn-secondary" onclick="setDeck('vowels')">母音</button>
+      <button class="btn btn-secondary" onclick="setDeck('consonants')">子音</button>
+      <button class="btn btn-secondary" onclick="setDeck('words')">単語</button>
+      <button class="btn btn-secondary" onclick="setDeck('phrases')">フレーズ</button>
+    </div>
+
+    <div class="score" id="fc-score"></div>
+    <div class="progress-bar"><div class="progress-fill" id="fc-progress"></div></div>
+
+    <div class="flashcard-area">
+      <div class="card" id="flashcard-card" onclick="flipCard()">
+        <div class="card-front" id="fc-front">—</div>
+        <div class="card-back" id="fc-back"></div>
+        <span class="hint">クリックで答えを表示</span>
+      </div>
+
+      <div class="card-controls">
+        <button class="btn btn-danger"   onclick="markCard(false)">✗ 不正解</button>
+        <button class="btn btn-secondary" onclick="skipCard()">→ スキップ</button>
+        <button class="btn btn-success"  onclick="markCard(true)">✓ 正解</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Quiz ===== -->
+  <div id="quiz" class="section">
+    <div style="display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+      <button class="btn btn-secondary" onclick="setQuizDeck('vowels')">母音</button>
+      <button class="btn btn-secondary" onclick="setQuizDeck('consonants')">子音</button>
+      <button class="btn btn-secondary" onclick="setQuizDeck('words')">単語</button>
+    </div>
+
+    <div class="score" id="quiz-score">正解: 0 / 0</div>
+    <div class="progress-bar"><div class="progress-fill" id="quiz-progress" style="width:0%"></div></div>
+
+    <div id="quiz-body">
+      <div class="quiz-question" id="quiz-q">—</div>
+      <div class="quiz-options" id="quiz-options"></div>
+      <div class="quiz-feedback" id="quiz-feedback"></div>
+      <div style="text-align:center; margin-top:16px;">
+        <button class="btn btn-primary" id="quiz-next" onclick="nextQuiz()" style="display:none;">次へ →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Writing Practice ===== -->
+  <div id="writing" class="section">
+    <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
+      <button class="btn btn-secondary" onclick="setWritingDeck('vowels')">母音</button>
+      <button class="btn btn-secondary" onclick="setWritingDeck('consonants')">子音</button>
+      <button class="btn btn-secondary" onclick="setWritingDeck('words')">単語</button>
+    </div>
+
+    <div class="writing-area">
+      <div class="writing-prompt" id="wr-prompt">次のハングルをタイピングしてください：</div>
+      <div class="writing-target" id="wr-target">—</div>
+      <div style="color:#888; font-size:0.85rem; text-align:center; margin-bottom:8px;" id="wr-meaning"></div>
+
+      <input type="text" class="writing-input" id="wr-input"
+             placeholder="ハングルを入力..." oninput="checkWriting()" autocomplete="off" />
+      <div class="writing-hint">※ キーボードを韓国語入力に切り替えるか、コピー&ペーストしてください。</div>
+
+      <div style="margin-top:20px; text-align:center;">
+        <button class="btn btn-primary" onclick="nextWriting()">次の問題 →</button>
+        <button class="btn btn-secondary" onclick="showAnswer()" style="margin-left:8px;">答えを見る</button>
+      </div>
+
+      <div style="margin-top:32px;">
+        <div class="section-title" style="margin-top:0;">手書き練習キャンバス</div>
+        <p style="color:#888; font-size:0.8rem; margin-bottom:8px;">上の文字を参考に、下のキャンバスに手書き練習しましょう。</p>
+        <div class="canvas-controls">
+          <button class="btn btn-secondary" onclick="clearCanvas()">クリア</button>
+          <button class="btn btn-secondary" onclick="changeColor('#e94560')">赤</button>
+          <button class="btn btn-secondary" onclick="changeColor('#eee')">白</button>
+        </div>
+        <canvas id="draw-canvas" width="500" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ===== DATA =====
+
+const VOWELS = [
+  { hangul:'아', roman:'a',  meaning:'ア' },
+  { hangul:'야', roman:'ya', meaning:'ヤ' },
+  { hangul:'어', roman:'eo', meaning:'オ(短)' },
+  { hangul:'여', roman:'yeo',meaning:'ヨ' },
+  { hangul:'오', roman:'o',  meaning:'オ' },
+  { hangul:'요', roman:'yo', meaning:'ヨ' },
+  { hangul:'우', roman:'u',  meaning:'ウ' },
+  { hangul:'유', roman:'yu', meaning:'ユ' },
+  { hangul:'으', roman:'eu', meaning:'ウ(口を横に)' },
+  { hangul:'이', roman:'i',  meaning:'イ' },
+  { hangul:'애', roman:'ae', meaning:'エ' },
+  { hangul:'에', roman:'e',  meaning:'エ' },
+  { hangul:'외', roman:'oe', meaning:'ウェ' },
+  { hangul:'위', roman:'wi', meaning:'ウィ' },
+  { hangul:'의', roman:'ui', meaning:'ウイ' },
+  { hangul:'와', roman:'wa', meaning:'ワ' },
+  { hangul:'워', roman:'wo', meaning:'ウォ' },
+  { hangul:'왜', roman:'wae',meaning:'ウェ' },
+  { hangul:'웨', roman:'we', meaning:'ウェ' },
+];
+
+const CONSONANTS = [
+  { hangul:'ㄱ', roman:'g/k',  meaning:'ガ行/カ行' },
+  { hangul:'ㄴ', roman:'n',    meaning:'ナ行' },
+  { hangul:'ㄷ', roman:'d/t',  meaning:'ダ行/タ行' },
+  { hangul:'ㄹ', roman:'r/l',  meaning:'ラ行/ルの発音' },
+  { hangul:'ㅁ', roman:'m',    meaning:'マ行' },
+  { hangul:'ㅂ', roman:'b/p',  meaning:'バ行/パ行' },
+  { hangul:'ㅅ', roman:'s',    meaning:'サ行' },
+  { hangul:'ㅇ', roman:'ng/-', meaning:'語頭は無音/語末はン' },
+  { hangul:'ㅈ', roman:'j',    meaning:'ジャ行' },
+  { hangul:'ㅊ', roman:'ch',   meaning:'チャ行(激音)' },
+  { hangul:'ㅋ', roman:'k',    meaning:'カ行(激音)' },
+  { hangul:'ㅌ', roman:'t',    meaning:'タ行(激音)' },
+  { hangul:'ㅍ', roman:'p',    meaning:'パ行(激音)' },
+  { hangul:'ㅎ', roman:'h',    meaning:'ハ行' },
+  { hangul:'ㄲ', roman:'kk',   meaning:'カ行(濃音)' },
+  { hangul:'ㄸ', roman:'tt',   meaning:'タ行(濃音)' },
+  { hangul:'ㅃ', roman:'pp',   meaning:'パ行(濃音)' },
+  { hangul:'ㅆ', roman:'ss',   meaning:'サ行(濃音)' },
+  { hangul:'ㅉ', roman:'jj',   meaning:'ジャ行(濃音)' },
+];
+
+const WORDS = [
+  { hangul:'안녕하세요', roman:'annyeonghaseyo', meaning:'こんにちは' },
+  { hangul:'감사합니다', roman:'gamsahamnida',   meaning:'ありがとうございます' },
+  { hangul:'죄송합니다', roman:'joesonghamnida', meaning:'すみません' },
+  { hangul:'네',         roman:'ne',             meaning:'はい' },
+  { hangul:'아니요',     roman:'aniyo',          meaning:'いいえ' },
+  { hangul:'사랑해요',   roman:'saranghaeyo',    meaning:'愛しています' },
+  { hangul:'물',         roman:'mul',            meaning:'水' },
+  { hangul:'밥',         roman:'bap',            meaning:'ご飯' },
+  { hangul:'친구',       roman:'chingu',         meaning:'友達' },
+  { hangul:'학교',       roman:'hakgyo',         meaning:'学校' },
+  { hangul:'한국어',     roman:'hangugeo',       meaning:'韓国語' },
+  { hangul:'일본어',     roman:'ilboneo',        meaning:'日本語' },
+  { hangul:'맛있어요',   roman:'massisseoyo',    meaning:'美味しいです' },
+  { hangul:'어디',       roman:'eodi',           meaning:'どこ' },
+  { hangul:'얼마예요',   roman:'eolmayeyo',      meaning:'いくらですか' },
+  { hangul:'화장실',     roman:'hwajangsil',     meaning:'トイレ' },
+  { hangul:'이름',       roman:'ireum',          meaning:'名前' },
+  { hangul:'오늘',       roman:'oneul',          meaning:'今日' },
+  { hangul:'내일',       roman:'naeil',          meaning:'明日' },
+  { hangul:'어제',       roman:'eoje',           meaning:'昨日' },
+];
+
+const PHRASES = [
+  { hangul:'이름이 뭐예요?', roman:'ireumi mwoyeyo?', meaning:'名前は何ですか？' },
+  { hangul:'잘 부탁드립니다', roman:'jal butakdeurimnida', meaning:'よろしくお願いします' },
+  { hangul:'천천히 말해 주세요', roman:'cheoncheonhi malhae juseyo', meaning:'ゆっくり話してください' },
+  { hangul:'모르겠어요', roman:'moreugesseoyo', meaning:'わかりません' },
+  { hangul:'한국어를 공부해요', roman:'hangugeoreul gongbuhaeyo', meaning:'韓国語を勉強しています' },
+  { hangul:'얼마예요?', roman:'eolmayeyo?', meaning:'いくらですか？' },
+  { hangul:'맛있어요!', roman:'massisseoyo!', meaning:'美味しい！' },
+  { hangul:'잘 먹겠습니다', roman:'jal meokgesseumnida', meaning:'いただきます' },
+];
+
+const DECKS = { vowels: VOWELS, consonants: CONSONANTS, words: WORDS, phrases: PHRASES };
+
+// ===== NAV =====
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+  if (id === 'flashcard' && !fcDeck.length) setDeck('vowels');
+  if (id === 'quiz' && !quizDeck.length) setQuizDeck('vowels');
+  if (id === 'writing' && !wrDeck.length) setWritingDeck('vowels');
+}
+
+// ===== CHART =====
+function buildChart() {
+  buildGrid('vowelGrid', VOWELS);
+  buildGrid('consonantGrid', CONSONANTS);
+  buildGrid('wordGrid', WORDS);
+}
+
+function buildGrid(id, items) {
+  const el = document.getElementById(id);
+  el.innerHTML = '';
+  items.forEach(item => {
+    const c = document.createElement('div');
+    c.className = 'chart-card';
+    c.innerHTML = `<div class="hangul">${item.hangul}</div>
+                   <div class="roman">[${item.roman}]</div>
+                   <div class="meaning">${item.meaning}</div>`;
+    c.onclick = () => alert(`${item.hangul}\n読み: ${item.roman}\n意味: ${item.meaning}`);
+    el.appendChild(c);
+  });
+}
+
+// ===== FLASHCARD =====
+let fcDeck = [], fcIdx = 0, fcCorrect = 0, fcTotal = 0, fcFlipped = false;
+
+function setDeck(name) {
+  fcDeck = shuffle([...DECKS[name]]);
+  fcIdx = 0; fcCorrect = 0; fcTotal = 0; fcFlipped = false;
+  showCard();
+}
+
+function showCard() {
+  if (fcIdx >= fcDeck.length) {
+    document.getElementById('fc-front').textContent = '完了！';
+    document.getElementById('fc-back').innerHTML = `正解率: ${fcCorrect}/${fcTotal}`;
+    document.getElementById('flashcard-card').classList.add('flipped');
+    return;
+  }
+  const item = fcDeck[fcIdx];
+  document.getElementById('fc-front').textContent = item.hangul;
+  document.getElementById('fc-back').innerHTML =
+    `[${item.roman}]<br><span style="font-size:0.95rem;color:#aaa">${item.meaning}</span>`;
+  document.getElementById('flashcard-card').classList.remove('flipped');
+  fcFlipped = false;
+  updateFcProgress();
+}
+
+function flipCard() {
+  document.getElementById('flashcard-card').classList.toggle('flipped');
+  fcFlipped = true;
+}
+
+function markCard(ok) {
+  if (!fcFlipped) { flipCard(); return; }
+  if (ok) fcCorrect++;
+  fcTotal++;
+  fcIdx++;
+  showCard();
+}
+
+function skipCard() { fcIdx++; showCard(); }
+
+function updateFcProgress() {
+  const pct = fcDeck.length ? (fcIdx / fcDeck.length * 100) : 0;
+  document.getElementById('fc-progress').style.width = pct + '%';
+  document.getElementById('fc-score').textContent = `${fcIdx} / ${fcDeck.length}  (正解: ${fcCorrect})`;
+}
+
+// ===== QUIZ =====
+let quizDeck = [], quizIdx = 0, quizCorrect = 0, quizAnswered = false;
+
+function setQuizDeck(name) {
+  quizDeck = shuffle([...DECKS[name]]);
+  quizIdx = 0; quizCorrect = 0; quizAnswered = false;
+  nextQuiz();
+}
+
+function nextQuiz() {
+  if (quizIdx >= quizDeck.length) {
+    document.getElementById('quiz-q').textContent = '完了！';
+    document.getElementById('quiz-options').innerHTML = '';
+    document.getElementById('quiz-feedback').textContent = `最終スコア: ${quizCorrect} / ${quizDeck.length}`;
+    document.getElementById('quiz-next').style.display = 'none';
+    return;
+  }
+  const item = quizDeck[quizIdx];
+  document.getElementById('quiz-q').textContent = item.hangul;
+  document.getElementById('quiz-feedback').textContent = '';
+  document.getElementById('quiz-next').style.display = 'none';
+  quizAnswered = false;
+
+  // build options: 1 correct + 3 random wrong
+  const pool = DECKS[currentQuizDeck()].filter(x => x !== item);
+  const wrongs = shuffle(pool).slice(0, 3);
+  const opts = shuffle([item, ...wrongs]);
+
+  const optsEl = document.getElementById('quiz-options');
+  optsEl.innerHTML = '';
+  opts.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.className = 'quiz-option';
+    btn.textContent = opt.meaning + (opt.roman ? `  [${opt.roman}]` : '');
+    btn.onclick = () => answer(btn, opt === item, item);
+    optsEl.appendChild(btn);
+  });
+
+  updateQuizProgress();
+}
+
+let _currentQuizDeck = 'vowels';
+function setQuizDeck(name) {
+  _currentQuizDeck = name;
+  quizDeck = shuffle([...DECKS[name]]);
+  quizIdx = 0; quizCorrect = 0; quizAnswered = false;
+  nextQuiz();
+}
+function currentQuizDeck() { return _currentQuizDeck; }
+
+function answer(btn, isCorrect, item) {
+  if (quizAnswered) return;
+  quizAnswered = true;
+  document.querySelectorAll('.quiz-option').forEach(b => b.disabled = true);
+
+  const fb = document.getElementById('quiz-feedback');
+  if (isCorrect) {
+    btn.classList.add('correct');
+    fb.textContent = '⭕ 正解！';
+    fb.className = 'quiz-feedback ok';
+    quizCorrect++;
+  } else {
+    btn.classList.add('wrong');
+    fb.textContent = `❌ 不正解。正解は「${item.meaning}」(${item.roman})`;
+    fb.className = 'quiz-feedback ng';
+    // highlight correct
+    document.querySelectorAll('.quiz-option').forEach(b => {
+      if (b.textContent.includes(item.meaning)) b.classList.add('correct');
+    });
+  }
+  quizIdx++;
+  document.getElementById('quiz-next').style.display = 'inline-block';
+  updateQuizProgress();
+}
+
+function updateQuizProgress() {
+  const pct = quizDeck.length ? (quizIdx / quizDeck.length * 100) : 0;
+  document.getElementById('quiz-progress').style.width = pct + '%';
+  document.getElementById('quiz-score').textContent = `正解: ${quizCorrect} / ${quizIdx}`;
+}
+
+// ===== WRITING =====
+let wrDeck = [], wrIdx = 0, wrShowAnswer = false;
+
+function setWritingDeck(name) {
+  wrDeck = shuffle([...DECKS[name]]);
+  wrIdx = 0;
+  showWriting();
+}
+
+function showWriting() {
+  if (wrIdx >= wrDeck.length) wrIdx = 0;
+  const item = wrDeck[wrIdx];
+  document.getElementById('wr-target').textContent = item.hangul;
+  document.getElementById('wr-meaning').textContent = `[${item.roman}]  ${item.meaning}`;
+  document.getElementById('wr-input').value = '';
+  document.getElementById('wr-input').className = 'writing-input';
+  wrShowAnswer = false;
+}
+
+function checkWriting() {
+  const input = document.getElementById('wr-input');
+  const target = wrDeck[wrIdx]?.hangul ?? '';
+  if (input.value === target) {
+    input.classList.remove('ng');
+    input.classList.add('ok');
+    setTimeout(() => { wrIdx++; showWriting(); clearCanvas(); }, 700);
+  } else if (target.startsWith(input.value)) {
+    input.className = 'writing-input';
+  } else {
+    input.classList.remove('ok');
+    input.classList.add('ng');
+  }
+}
+
+function nextWriting() {
+  wrIdx++;
+  showWriting();
+  clearCanvas();
+}
+
+function showAnswer() {
+  document.getElementById('wr-input').value = wrDeck[wrIdx]?.hangul ?? '';
+  document.getElementById('wr-input').className = 'writing-input';
+}
+
+// ===== CANVAS =====
+let drawing = false, strokeColor = '#e94560';
+const canvas = document.getElementById('draw-canvas');
+const ctx = canvas.getContext('2d');
+ctx.strokeStyle = strokeColor;
+ctx.lineWidth = 3;
+ctx.lineCap = 'round';
+
+function pos(e) {
+  const r = canvas.getBoundingClientRect();
+  const src = e.touches ? e.touches[0] : e;
+  return { x: src.clientX - r.left, y: src.clientY - r.top };
+}
+
+canvas.addEventListener('mousedown',  e => { drawing = true; ctx.beginPath(); const p=pos(e); ctx.moveTo(p.x,p.y); });
+canvas.addEventListener('mousemove',  e => { if (!drawing) return; const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); });
+canvas.addEventListener('mouseup',    () => drawing = false);
+canvas.addEventListener('mouseleave', () => drawing = false);
+canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing=true; ctx.beginPath(); const p=pos(e); ctx.moveTo(p.x,p.y); }, {passive:false});
+canvas.addEventListener('touchmove',  e => { e.preventDefault(); if(!drawing) return; const p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); }, {passive:false});
+canvas.addEventListener('touchend',   () => drawing = false);
+
+function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+function changeColor(c) { strokeColor = c; ctx.strokeStyle = c; }
+
+// ===== UTILS =====
+function shuffle(arr) {
+  for (let i = arr.length-1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i+1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// ===== INIT =====
+buildChart();
+setDeck('vowels');
+setQuizDeck('vowels');
+setWritingDeck('vowels');
+</script>
+</body>
+</html>
